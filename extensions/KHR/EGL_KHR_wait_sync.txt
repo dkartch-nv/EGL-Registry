@@ -11,6 +11,7 @@ Contributors
     Jon Leech
     Tom Cooksey
     Alon Or-bach
+    Daniel Kartch
 
 Contacts
 
@@ -18,7 +19,7 @@ Contacts
 
 Notice
 
-    Copyright (c) 2012-2014 The Khronos Group Inc. Copyright terms at
+    Copyright (c) 2012-2018 The Khronos Group Inc. Copyright terms at
         http://www.khronos.org/registry/speccopyright.html
 
 Status
@@ -28,7 +29,7 @@ Status
 
 Version
 
-    Version 7, March 12, 2014
+    Version 8, July 3, 2018
 
 Number
 
@@ -88,12 +89,15 @@ Changes to Chapter 3 of the EGL 1.4 Specification (EGL Functions and Errors)
     is similar to eglClientWaitSyncKHR, but instead of blocking and not
     returning to the application until <sync> is signaled, eglWaitSyncKHR
     returns immediately. On success, EGL_TRUE is returned, and the server
-    for the client API context [fn1] will block until <sync> is signaled
-    [fn2].
+    for the client API context [fn1] will block until <sync> [fn2] is
+    signaled [fn3].
        [fn1 - the server may choose to wait either in the CPU executing
         server-side code, or in the GPU hardware if it supports this
         operation.]
-       [fn2 - eglWaitSyncKHR allows applications to continue to queue
+       [fn2 - if the sync is signaled by a different server than that
+        for the client API context, the two servers may not have access
+        to each other, in which case an error will be returned.]
+       [fn3 - eglWaitSyncKHR allows applications to continue to queue
         commands from the application in anticipation of the sync being
         signaled, potentially increasing parallelism between application,
         client API server code, and the GPU. The server only blocks
@@ -122,6 +126,9 @@ Changes to Chapter 3 of the EGL 1.4 Specification (EGL Functions and Errors)
       * If <sync> is not a valid sync object for <dpy>, an EGL_BAD_PARAMETER
         error is generated.
       * If <flags> is not 0, an EGL_BAD_PARAMETER error is generated.
+      * If the server for the client API context cannot access the server
+        with which <sync> is associated, an EGL_BAD_ACCESS error is
+        generated.
 
     Each client API which supports eglWaitSyncKHR indicates this support in
     the form of a client API extension. If the GL_OES_EGL_sync extension is
@@ -201,17 +208,23 @@ Issues
 
     2. Must all EGL client APIs support server waits?
 
-    PROPOSED: Only if the client APIs also support fence syncs, which also
-    interacts with the server for that client API. The same client API
-    extensions defining fence sync support (GL_OES_EGL_sync and
-    VG_KHR_EGL_sync) are used here to indicate server wait ability for those
-    client APIs.
+    RESOLVED: Only if the client APIs also support fence syncs and are
+    able to interact with the server for the client API with which the
+    sync is associated. The same client API extensions defining fence
+    sync support (GL_OES_EGL_sync and VG_KHR_EGL_sync) are used here to
+    indicate server wait ability for those client APIs.
 
-    Reusable syncs in EGL_KHR_reusable_sync do not have this dependency,
-    because it is (at least in principle) possible for eglClientWaitSyncKHR
-    to be performed entirely within the EGL implementation. However,
-    eglWaitSyncKHR requires cooperation of the client API, whether fence
-    syncs or reusable syncs are being waited upon.
+    Client APIs may, but are not required to, be able to wait for each
+    others' fence syncs. Additonally, client APIs which perform waits
+    in the GPU are not rquired to be able to wait for reusable syncs
+    as defined in EGL_KHR_reusable_sync, which are signalled by the CPU.
+
+    The eglClientWaitSyncKHR function defined in EGL_KHR_reusable_sync
+    does not have this dependency, because it is (at least in principle)
+    possible for this wait to be performed entirely within the EGL
+    implementation. However eglWaitSyncKHR requires cooperation of the
+    client API, whether fence syncs or reusable syncs are being waited
+    upon.
 
     It would be possible to completely decouple fence syncs and the ability
     to do server waits, but this would require new client API extensions.
@@ -252,6 +265,10 @@ Issues
 
 Revision History
 
+#8   (Daniel Kartch, July 3, 2018)
+   - Resolved issue 2, adding error code when servers for client API and
+     sync cannot interact, and clarifying that reusable syncs may not be
+     usable with eglWaitSyncKHR.
 #7   (Alon Or-bach, March 12, 2014)
    - Clarified that eglDestroySyncKHR behavior is set in 
      EGL_KHR_fence_sync / EGL_KHR_reusable_sync and is not modified by this
